@@ -1,3 +1,12 @@
+class GraphEdgeData {
+    
+}
+
+class GraphNodeData {
+    x: number;
+    y: number;
+}
+
 class GraphEdge {
     json: string;
     nodes: Array<number>;
@@ -41,8 +50,8 @@ class Graph {
             this.edges = [];
     }
 
-    addNode() {
-        this.nodes.push(new GraphNode(this.nodes.length, "", []));
+    addNode(json: string) {
+        this.nodes.push(new GraphNode(this.nodes.length, json, []));
     }
 
     getNumNodes(): number {
@@ -63,16 +72,26 @@ class Graph {
     }
 }
 
-let drawSelector = "vertex"
+let drawSelector = "vertex";
+let isDrawing = false;
+var edgeBegin: GraphNode;
+let G = new Graph();
 
 let canvas = document.getElementById("canvas") as HTMLCanvasElement;
 canvas.width = canvas.parentElement.offsetWidth;
 canvas.height = 1000;
 let ctx = canvas.getContext("2d");
-canvas.addEventListener("click", draw)
+ctx.font = "20px Arial";
+canvas.addEventListener("mousedown", beginDraw);
+canvas.addEventListener("mouseup", endDraw);
+canvas.addEventListener("mousemove", updateDraw);
 
 let vertex_button = document.getElementById("vertex-button") as HTMLButtonElement;
 let edge_button = document.getElementById("edge-button") as HTMLButtonElement;
+
+function distance(u: Array<number>, v: Array<number>) {
+    return Math.sqrt((u[0]-v[0])*(u[0]-v[0]) + (u[1]-v[1])*(u[1]-v[1]));
+}
 
 function clickVertexButton() {
     drawSelector = "vertex"
@@ -86,17 +105,88 @@ function clickEdgeButton() {
     edge_button.className = "pure-button pure-button-active";
 }
 
-function draw(e: MouseEvent) {
+function beginDraw(e: MouseEvent) {
+    let rect = canvas.getBoundingClientRect();
+    let x =  e.clientX - rect.left;
+    let y = e.clientY - rect.top;
+    if (drawSelector == "edge") {
+        for (var v of G.nodes) {
+            let data : GraphNodeData = JSON.parse(v.json);
+            if (distance([x,y], [data.x, data.y]) < 20) {
+                edgeBegin = v;
+                isDrawing = true;
+                return;
+            }
+        }
+    }
+}
+
+function endDraw(e: MouseEvent) {
     let rect = canvas.getBoundingClientRect();
     let x =  e.clientX - rect.left;
     let y = e.clientY - rect.top;
     if (drawSelector == "vertex") {
-        drawVertex(x, y);
+        G.addNode('{"x":' + x + ', "y":' + y + '}');
+        drawVertex(G.nodes[G.getNumNodes() - 1]);
+    } else if (drawSelector == "edge") {
+        for (var v of G.nodes) {
+            let data : GraphNodeData = JSON.parse(v.json);
+            if (distance([x,y], [data.x, data.y]) < 20) {
+                if(edgeBegin.id != v.id) {
+                    G.addEdge(edgeBegin.id, v.id);
+                    drawEdge(edgeBegin, v);
+                }
+                break;
+            }
+        }
+    }
+    
+    isDrawing = false;
+    reDraw();
+}
+
+function updateDraw(e: MouseEvent) {
+    if (isDrawing) {
+        let rect = canvas.getBoundingClientRect();
+        let x =  e.clientX - rect.left;
+        let y = e.clientY - rect.top;
+        reDraw();
+        let data: GraphNodeData = JSON.parse(edgeBegin.json);
+        ctx.moveTo(data.x, data.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
     }
 }
 
-function drawVertex(x: number, y: number) {
+function reDraw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (var v of G.nodes) {
+        drawVertex(v);
+    }
+
+    for (var e of G.edges) {
+        let nodeFrom = G.nodes[e.nodes[0]];
+        let nodeTo = G.nodes[e.nodes[1]];
+        drawEdge(nodeFrom, nodeTo);
+    }
+}
+
+function drawVertex(node: GraphNode) {
+    let data: GraphNodeData = JSON.parse(node.json);
     ctx.beginPath()
-    ctx.arc(x, y, 20, 0, 2 * Math.PI)
+    ctx.arc(data.x, data.y, 20, 0, 2 * Math.PI)
     ctx.stroke()
+    if(node.id < 10) {
+        ctx.fillText(node.id.toString(), data.x - 40, data.y);
+    } else {
+        ctx.fillText(node.id.toString(), data.x - 50, data.y);
+    }
+}
+
+function drawEdge(nodeFrom: GraphNode, nodeTo: GraphNode) {
+    let fromData: GraphNodeData = JSON.parse(nodeFrom.json);
+    let toData: GraphNodeData = JSON.parse(nodeTo.json);
+    ctx.moveTo(fromData.x, fromData.y);
+    ctx.lineTo(toData.x, toData.y);
+    ctx.stroke();
 }
